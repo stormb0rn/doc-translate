@@ -1,8 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { TRANSLATION_SYSTEM_PROMPT, TRANSLATION_JSON_SCHEMA } from "./prompts";
 import type { TranslationResult } from "./types";
 
-const anthropic = new Anthropic();
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "anthropic/claude-sonnet-4-6";
 
 interface FileInput {
   base64: string;
@@ -10,66 +10,78 @@ interface FileInput {
   fileName: string;
 }
 
-// Build content blocks for the Claude API request
-function buildContentBlocks(files: FileInput[]): Anthropic.MessageCreateParams["messages"][0]["content"] {
-  const blocks: Anthropic.ContentBlockParam[] = [];
+// Build OpenAI-compatible content blocks for OpenRouter
+function buildContentParts(files: FileInput[]) {
+  const parts: Record<string, unknown>[] = [];
 
   for (const file of files) {
     if (file.mediaType === "application/pdf") {
-      blocks.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: file.base64,
+      // OpenRouter supports file content type for PDFs
+      parts.push({
+        type: "file",
+        file: {
+          filename: file.fileName,
+          file_data: `data:application/pdf;base64,${file.base64}`,
         },
       });
     } else {
-      // Image types: image/jpeg, image/png
-      blocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: file.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-          data: file.base64,
+      // Images use image_url with data URL
+      parts.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${file.mediaType};base64,${file.base64}`,
         },
       });
     }
   }
 
-  blocks.push({
+  parts.push({
     type: "text",
-    text: "Please OCR, translate, and structure this Chinese document into English. Return the structured JSON.",
+    text: `Please OCR, translate, and structure this Chinese document into English. Return the structured JSON.
+
+Required JSON schema:
+${JSON.stringify(TRANSLATION_JSON_SCHEMA, null, 2)}`,
   });
 
-  return blocks;
+  return parts;
 }
 
 export async function translateDocument(files: FileInput[]): Promise<TranslationResult> {
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    system: TRANSLATION_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: buildContentBlocks(files),
-      },
-    ],
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: TRANSLATION_JSON_SCHEMA,
-      },
-    },
-  });
-
-  // Extract text from response
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text response from Claude");
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not configured");
   }
 
-  const result: TranslationResult = JSON.parse(textBlock.text);
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: TRANSLATION_SYSTEM_PROMPT },
+        { role: "user", content: buildContentParts(files) },
+      ],
+      max_tokens: 8192,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => null);
+    throw new Error(
+      err?.error?.message || `OpenRouter API error (${response.status})`
+    );
+  }
+
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) {
+    throw new Error("No response from AI model");
+  }
+
+  const result: TranslationResult = JSON.parse(text);
   return result;
 }
