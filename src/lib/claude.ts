@@ -82,6 +82,8 @@ export async function translateDocument(files: FileInput[]): Promise<Translation
     throw new Error("No response from AI model");
   }
 
-  const result: TranslationResult = JSON.parse(text);
+  // Strip markdown code fences if the model wraps JSON in ```json ... ```
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  const result: TranslationResult = JSON.parse(cleaned);
   return result;
 }

@@ -93,7 +93,7 @@ export default function UploadZone({ files, onFilesAdded, disabled }: UploadZone
           Drop files here or <span className="text-blue-600">browse</span>
         </p>
         <p className="mt-1 text-xs text-zinc-500">
-          JPG, PNG (max 5MB) or PDF (max 20MB) &middot; Up to {MAX_FILE_COUNT} files
+          JPG, PNG, HEIC (max 5MB) or PDF (max 20MB) &middot; Up to {MAX_FILE_COUNT} files
         </p>
         <input
           ref={inputRef}

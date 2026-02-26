@@ -1,14 +1,19 @@
 // File upload constraints
 
 export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png"];
+export const ACCEPTED_HEIC_TYPES = ["image/heic", "image/heif"];
 export const ACCEPTED_PDF_TYPES = ["application/pdf"];
-export const ACCEPTED_FILE_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES];
+export const ACCEPTED_FILE_TYPES = [
+  ...ACCEPTED_IMAGE_TYPES,
+  ...ACCEPTED_HEIC_TYPES,
+  ...ACCEPTED_PDF_TYPES,
+];
 
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 export const MAX_PDF_SIZE = 20 * 1024 * 1024; // 20MB
 export const MAX_FILE_COUNT = 20;
 
-export const ACCEPT_STRING = ".jpg,.jpeg,.png,.pdf";
+export const ACCEPT_STRING = ".jpg,.jpeg,.png,.heic,.heif,.pdf";
 
 export function getMaxSize(type: string): number {
   if (ACCEPTED_PDF_TYPES.includes(type)) return MAX_PDF_SIZE;
