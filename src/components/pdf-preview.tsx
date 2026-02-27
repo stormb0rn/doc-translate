@@ -19,17 +19,14 @@ export default function PdfPreview({ result }: PdfPreviewProps) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/generate-pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ result }),
-        });
-        if (!res.ok) throw new Error("Failed to generate PDF");
-        const blob = await res.blob();
+        // Client-side Typst WASM compilation
+        const { compileTypstPdf } = await import("@/lib/typst-compile");
+        const blob = await compileTypstPdf(result);
         const url = URL.createObjectURL(blob);
         revoke = url;
         setPdfUrl(url);
-      } catch {
+      } catch (err) {
+        console.error("PDF preview error:", err);
         setError("PDF preview generation failed");
       } finally {
         setLoading(false);

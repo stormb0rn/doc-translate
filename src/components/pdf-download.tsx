@@ -12,17 +12,12 @@ export default function PdfDownload({ result, files }: PdfDownloadProps) {
   const [typstLoading, setTypstLoading] = useState(false);
   const [classicLoading, setClassicLoading] = useState(false);
 
-  // Download via server-side Typst compiler
+  // Download via client-side Typst WASM compiler
   const handleTypstDownload = async () => {
     setTypstLoading(true);
     try {
-      const res = await fetch("/api/generate-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result }),
-      });
-      if (!res.ok) throw new Error("Failed to generate PDF");
-      const blob = await res.blob();
+      const { compileTypstPdf } = await import("@/lib/typst-compile");
+      const blob = await compileTypstPdf(result);
       downloadBlob(
         blob,
         `${result.title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_")}_typst.pdf`
