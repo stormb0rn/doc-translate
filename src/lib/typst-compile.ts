@@ -1,6 +1,10 @@
 import { generateTypstSource } from "./typst-template";
 import type { TranslationResult } from "./types";
 
+// CDN URL for Typst WASM compiler (avoids Next.js bundler WASM issues)
+const WASM_CDN_URL =
+  "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler@0.7.0-rc2/pkg/typst_ts_web_compiler_bg.wasm";
+
 // Compile TranslationResult to PDF using Typst WASM (browser-side)
 export async function compileTypstPdf(
   result: TranslationResult
@@ -16,6 +20,7 @@ export async function compileTypstPdf(
 
   const compiler = createTypstCompiler();
   await compiler.init({
+    getModule: () => fetch(WASM_CDN_URL),
     beforeBuild: [
       initOptions.preloadFontAssets({ assets: ["text", "cjk"] }),
     ],
