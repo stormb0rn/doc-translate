@@ -2,7 +2,15 @@ import { TRANSLATION_SYSTEM_PROMPT, TRANSLATION_JSON_SCHEMA } from "./prompts";
 import type { TranslationResult } from "./types";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "anthropic/claude-sonnet-4-6";
+
+export type ModelKey = "kimi" | "seed" | "gemini" | "claude";
+
+const MODEL_MAP: Record<ModelKey, string> = {
+  kimi: "moonshotai/kimi-k2.5",
+  seed: "bytedance-seed/seed-2.0-mini",
+  gemini: "google/gemini-3-flash-preview",
+  claude: "anthropic/claude-sonnet-4-6",
+};
 
 interface FileInput {
   base64: string;
@@ -46,7 +54,7 @@ ${JSON.stringify(TRANSLATION_JSON_SCHEMA, null, 2)}`,
   return parts;
 }
 
-export async function translateDocument(files: FileInput[]): Promise<TranslationResult> {
+export async function translateDocument(files: FileInput[], model: ModelKey = "kimi"): Promise<TranslationResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not configured");
@@ -59,7 +67,7 @@ export async function translateDocument(files: FileInput[]): Promise<Translation
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: MODEL_MAP[model],
       messages: [
         { role: "system", content: TRANSLATION_SYSTEM_PROMPT },
         { role: "user", content: buildContentParts(files) },
@@ -82,8 +90,9 @@ export async function translateDocument(files: FileInput[]): Promise<Translation
     throw new Error("No response from AI model");
   }
 
-  // Strip markdown code fences if the model wraps JSON in ```json ... ```
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  // Strip markdown code fences — some models wrap JSON in ```json ... ```
+  const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/i);
+  const cleaned = (fenceMatch ? fenceMatch[1] : text).trim();
   const result: TranslationResult = JSON.parse(cleaned);
   return result;
 }

@@ -1,6 +1,10 @@
 // File upload constraints
 
 export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png"];
+
+// Batch processing
+export const BATCH_THRESHOLD = 5; // Trigger batching when file count >= this
+export const BATCH_SIZE = 4; // Max files per batch
 export const ACCEPTED_HEIC_TYPES = ["image/heic", "image/heif"];
 export const ACCEPTED_PDF_TYPES = ["application/pdf"];
 export const ACCEPTED_FILE_TYPES = [

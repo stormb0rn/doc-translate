@@ -1,6 +1,21 @@
 import { ACCEPTED_FILE_TYPES, ACCEPTED_HEIC_TYPES, getMaxSize } from "./constants";
 import type { UploadedFile } from "./types";
 
+// Detect duplicate by comparing first 2000 chars of base64 data
+const DUPLICATE_PREFIX_LEN = 2000;
+
+export function findDuplicate(
+  newFile: UploadedFile,
+  existingFiles: UploadedFile[],
+): UploadedFile | null {
+  const prefix = newFile.base64.slice(0, DUPLICATE_PREFIX_LEN);
+  return (
+    existingFiles.find(
+      (f) => f.id !== newFile.id && f.base64.slice(0, DUPLICATE_PREFIX_LEN) === prefix,
+    ) ?? null
+  );
+}
+
 // Validate a single file — also accept HEIC by filename for browsers
 // that report empty or generic MIME types for .heic files
 function isHeicByName(file: File): boolean {

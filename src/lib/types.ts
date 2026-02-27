@@ -72,3 +72,16 @@ export interface TranslationState {
   result: TranslationResult | null;
   error: string | null;
 }
+
+// Batch processing types
+export interface BatchProgress {
+  current: number;
+  total: number;
+}
+
+export interface BatchResult {
+  batchIndex: number;
+  fileNames: string[];
+  result: TranslationResult | null;
+  error: string | null;
+}
