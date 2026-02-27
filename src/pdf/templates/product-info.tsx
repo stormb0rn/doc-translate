@@ -73,13 +73,6 @@ export default function ProductInfo({ result, files }: ProductInfoProps) {
           )}
         </View>
 
-        <View style={styles.warning}>
-          <Text style={styles.warningText}>
-            This is an AI-generated translation for reference only. Always consult a healthcare
-            professional before using any medication.
-          </Text>
-        </View>
-
         {result.sections.map((section, i) => {
           switch (section.type) {
             case "key_value":

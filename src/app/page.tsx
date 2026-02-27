@@ -6,6 +6,7 @@ import FileList from "@/components/file-list";
 import TranslateButton from "@/components/translate-button";
 import TranslationPreview from "@/components/translation-preview";
 import PdfDownload from "@/components/pdf-download";
+import PdfPreview from "@/components/pdf-preview";
 import DocumentTypeBadge from "@/components/document-type-badge";
 import ErrorMessage from "@/components/error-message";
 import type { UploadedFile, TranslationResult } from "@/lib/types";
@@ -15,6 +16,7 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "translating" | "done" | "error">("idle");
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewTab, setPreviewTab] = useState<"text" | "pdf">("pdf");
 
   const handleFilesAdded = useCallback((newFiles: UploadedFile[]) => {
     setFiles((prev) => [...prev, ...newFiles]);
@@ -124,7 +126,36 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <TranslationPreview result={result} />
+
+            {/* Tab toggle */}
+            <div className="flex gap-1 rounded-lg bg-zinc-100 p-1">
+              <button
+                onClick={() => setPreviewTab("pdf")}
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  previewTab === "pdf"
+                    ? "bg-white text-zinc-900 shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                PDF Preview
+              </button>
+              <button
+                onClick={() => setPreviewTab("text")}
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  previewTab === "text"
+                    ? "bg-white text-zinc-900 shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                Text Preview
+              </button>
+            </div>
+
+            {previewTab === "pdf" ? (
+              <PdfPreview result={result} />
+            ) : (
+              <TranslationPreview result={result} />
+            )}
           </div>
         )}
       </main>
