@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { UploadedFile, BatchProgress } from "@/lib/types";
 import { formatFileSize } from "@/lib/constants";
 
 interface TranslatingOverlayProps {
   files: UploadedFile[];
   batchProgress?: BatchProgress | null;
+  reasoningText?: string;
+  streamPhase?: "idle" | "reasoning" | "translating";
 }
 
 const STAGES = [
@@ -15,28 +17,46 @@ const STAGES = [
   "Translating to English...",
 ];
 
-export default function TranslatingOverlay({ files, batchProgress }: TranslatingOverlayProps) {
+export default function TranslatingOverlay({ files, batchProgress, reasoningText, streamPhase }: TranslatingOverlayProps) {
   const [stageIndex, setStageIndex] = useState(0);
+  const reasoningRef = useRef<HTMLDivElement>(null);
 
   // Reset stage when batch changes
   useEffect(() => {
     setStageIndex(0);
   }, [batchProgress?.current]);
 
+  // Fake stage rotation only when no streaming data
   useEffect(() => {
+    if (streamPhase && streamPhase !== "idle") return;
     const timer = setInterval(() => {
       setStageIndex((prev) => {
         if (prev < STAGES.length - 1) return prev + 1;
-        return prev; // Stay on last stage
+        return prev;
       });
     }, 3000);
     return () => clearInterval(timer);
-  }, []);
+  }, [streamPhase]);
+
+  // Auto-scroll reasoning text
+  useEffect(() => {
+    if (reasoningRef.current) {
+      reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
+    }
+  }, [reasoningText]);
 
   const isBatched = batchProgress && batchProgress.total > 1;
   const progressPct = batchProgress
     ? Math.round((batchProgress.current / batchProgress.total) * 100)
     : 0;
+
+  // Determine stage text based on streaming phase
+  const isStreaming = streamPhase && streamPhase !== "idle";
+  const stageText = isStreaming
+    ? streamPhase === "reasoning"
+      ? "AI is analyzing the document..."
+      : "Translating..."
+    : STAGES[stageIndex];
 
   return (
     <div className="w-full space-y-6">
@@ -48,7 +68,7 @@ export default function TranslatingOverlay({ files, batchProgress }: Translating
             <div className="absolute inset-0.5 rounded-full bg-blue-500" />
           </div>
           <p className="text-sm font-medium text-zinc-700 transition-all duration-500">
-            {STAGES[stageIndex]}
+            {stageText}
           </p>
         </div>
         {isBatched && (
@@ -57,6 +77,18 @@ export default function TranslatingOverlay({ files, batchProgress }: Translating
           </p>
         )}
       </div>
+
+      {/* Reasoning text display */}
+      {reasoningText && (
+        <div
+          ref={reasoningRef}
+          className="mx-auto max-h-40 w-full max-w-2xl overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3"
+        >
+          <p className="text-xs italic text-zinc-500 whitespace-pre-wrap leading-relaxed">
+            {reasoningText.length > 800 ? "..." + reasoningText.slice(-800) : reasoningText}
+          </p>
+        </div>
+      )}
 
       {/* File cards with scan animation */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">

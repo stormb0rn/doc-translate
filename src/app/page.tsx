@@ -10,9 +10,9 @@ import PdfDownload from "@/components/pdf-download";
 import PdfPreview from "@/components/pdf-preview";
 import DocumentTypeBadge from "@/components/document-type-badge";
 import ErrorMessage from "@/components/error-message";
-import type { UploadedFile, TranslationResult, BatchProgress, BatchResult } from "@/lib/types";
+import type { UploadedFile, TranslationResult, TranslateStreamEvent, BatchProgress, BatchResult } from "@/lib/types";
 import type { ModelKey } from "@/lib/claude";
-import { translateWithBatching, retryFailedBatches } from "@/lib/batch";
+import { translateWithBatching, translateWithStreaming, retryFailedBatches } from "@/lib/batch";
 import { findDuplicate } from "@/lib/file-utils";
 
 export default function Home() {
@@ -26,6 +26,8 @@ export default function Home() {
   const [model, setModel] = useState<ModelKey>("kimi");
   const [activeResultIdx, setActiveResultIdx] = useState(0);
   const [duplicateWarnings, setDuplicateWarnings] = useState<Map<string, string>>(new Map());
+  const [reasoningText, setReasoningText] = useState("");
+  const [streamPhase, setStreamPhase] = useState<"idle" | "reasoning" | "translating">("idle");
 
   const handleFilesAdded = useCallback((newFiles: UploadedFile[]) => {
     const updated = [...files, ...newFiles];
@@ -68,10 +70,18 @@ export default function Home() {
     setBatchResults([]);
     setBatchProgress(null);
     setActiveResultIdx(0);
+    setReasoningText("");
+    setStreamPhase("idle");
 
     try {
-      const outcome = await translateWithBatching(files, model, (p) => {
-        setBatchProgress(p);
+      // Use streaming for all requests
+      const outcome = await translateWithStreaming(files, model, (event: TranslateStreamEvent) => {
+        if (event.type === "reasoning" && event.text) {
+          setStreamPhase("reasoning");
+          setReasoningText((prev) => prev + event.text);
+        } else if (event.type === "content") {
+          setStreamPhase("translating");
+        }
       });
 
       setBatchResults(outcome.batchResults);
@@ -80,22 +90,15 @@ export default function Home() {
       if (outcome.results.length > 0) {
         setStatus("done");
       } else {
-        setError("All batches failed. Please try again.");
+        setError("Translation failed. Please try again.");
         setStatus("error");
-      }
-
-      if (outcome.hasFailures && outcome.results.length > 0) {
-        // Partial success — show results but also show error for failed batches
-        const failedNames = outcome.batchResults
-          .filter((b) => b.error)
-          .flatMap((b) => b.fileNames);
-        setError(`Some files failed to translate: ${failedNames.join(", ")}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
       setStatus("error");
     } finally {
       setBatchProgress(null);
+      setStreamPhase("idle");
     }
   }, [files, model]);
 
@@ -137,6 +140,8 @@ export default function Home() {
     setBatchProgress(null);
     setActiveResultIdx(0);
     setDuplicateWarnings(new Map());
+    setReasoningText("");
+    setStreamPhase("idle");
   }, []);
 
   const isTranslating = status === "translating";
@@ -228,7 +233,7 @@ export default function Home() {
 
         {/* File list / Translating overlay */}
         {isTranslating ? (
-          <TranslatingOverlay files={files} batchProgress={batchProgress} />
+          <TranslatingOverlay files={files} batchProgress={batchProgress} reasoningText={reasoningText} streamPhase={streamPhase} />
         ) : (
           <>
             <FileList

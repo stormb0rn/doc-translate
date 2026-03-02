@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { translateDocument, type ModelKey } from "@/lib/claude";
+import { translateDocument, translateDocumentStream, type ModelKey } from "@/lib/claude";
 
-export const runtime = "nodejs";
-export const maxDuration = 60;
+export const runtime = "edge";
 
 interface FilePayload {
   base64: string;
@@ -14,6 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const files: FilePayload[] = body.files;
+    const stream: boolean = body.stream === true;
     const validModels = ["kimi", "seed", "gemini", "claude"] as const;
     const model: ModelKey = validModels.includes(body.model) ? body.model : "kimi";
 
@@ -25,6 +25,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Too many files (max 20)" }, { status: 400 });
     }
 
+    // Streaming path — return SSE
+    if (stream) {
+      const sseStream = translateDocumentStream(files, model);
+      return new Response(sseStream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    // Non-streaming path — unchanged
     const result = await translateDocument(files, model);
     return NextResponse.json(result);
   } catch (error) {

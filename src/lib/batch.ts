@@ -2,6 +2,7 @@ import { BATCH_THRESHOLD, BATCH_SIZE } from "./constants";
 import type {
   UploadedFile,
   TranslationResult,
+  TranslateStreamEvent,
   BatchProgress,
   BatchResult,
 } from "./types";
@@ -224,6 +225,100 @@ export async function translateWithBatching(
   const hasFailures = batchResults.some((b) => b.error !== null);
 
   return { results, batchResults, hasFailures };
+}
+
+// Parse SSE stream from /api/translate?stream=true
+async function consumeSSEStream(
+  response: Response,
+  onStream: (event: TranslateStreamEvent) => void,
+): Promise<TranslationResult> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: TranslationResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    let currentEventType = "";
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEventType = line.slice(7).trim();
+      } else if (line.startsWith("data: ")) {
+        try {
+          const event: TranslateStreamEvent = JSON.parse(line.slice(6));
+          onStream(event);
+          if (event.type === "done" && event.result) {
+            result = event.result;
+          }
+          if (event.type === "error") {
+            throw new Error(event.message || "Stream translation failed");
+          }
+        } catch (err) {
+          if (err instanceof SyntaxError) continue; // Skip malformed JSON
+          throw err;
+        }
+      }
+    }
+  }
+
+  if (!result) throw new Error("Stream ended without a result");
+  return result;
+}
+
+// Streaming translation — all files in one request, no batching
+export async function translateWithStreaming(
+  files: UploadedFile[],
+  model: ModelKey,
+  onStream: (event: TranslateStreamEvent) => void,
+): Promise<BatchTranslationResult> {
+  const payload = files.map((f) => ({
+    base64: f.base64,
+    mediaType: f.mediaType,
+    fileName: f.file.name,
+  }));
+
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: payload, model, stream: true }),
+    });
+
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `Translation failed (${res.status})`);
+    }
+
+    const result = await consumeSSEStream(res, onStream);
+    return {
+      results: [result],
+      batchResults: [{
+        batchIndex: 0,
+        fileNames: files.map((f) => f.file.name),
+        result,
+        error: null,
+      }],
+      hasFailures: false,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Translation failed";
+    return {
+      results: [],
+      batchResults: [{
+        batchIndex: 0,
+        fileNames: files.map((f) => f.file.name),
+        result: null,
+        error: msg,
+      }],
+      hasFailures: true,
+    };
+  }
 }
 
 // Retry only failed batches

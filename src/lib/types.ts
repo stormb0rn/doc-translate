@@ -73,6 +73,16 @@ export interface TranslationState {
   error: string | null;
 }
 
+// Streaming event types
+export type StreamEventType = "reasoning" | "content" | "done" | "error";
+
+export interface TranslateStreamEvent {
+  type: StreamEventType;
+  text?: string;
+  result?: TranslationResult;
+  message?: string;
+}
+
 // Batch processing types
 export interface BatchProgress {
   current: number;
